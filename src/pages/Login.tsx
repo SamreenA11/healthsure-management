@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/config/api";
+import { loginUser } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -15,57 +16,54 @@ const Login = () => {
     email: "",
     password: "",
   });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/");
+      }
+    });
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    console.log("Attempting login with API:", API_BASE_URL);
+    setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
-
-      console.log("Login response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Login error:", errorText);
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          throw new Error(`Server error: ${response.status}`);
-        }
-        throw new Error(errorData.error || "Login failed");
-      }
-
-      const data = await response.json();
-      console.log("Login successful, user role:", data.user.role);
-
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("role", data.user.role);
-      localStorage.setItem("email", data.user.email);
-      localStorage.setItem("userId", data.user.id);
+      await loginUser(formData);
+      
+      // Get the user's profile to check their role
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user!.id)
+        .single();
 
       toast({
         title: "Login Successful",
-        description: `Welcome back ${data.user.role}!`,
+        description: `Welcome back!`,
       });
-
-      // Navigate based on role
-      navigate(`/dashboard/${data.user.role}`);
-    } catch (error) {
-      console.error("Login error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Invalid credentials";
-
+      
+      // Redirect based on user role
+      const role = profile?.role;
+      if (role === "admin") {
+        navigate("/dashboard/admin");
+      } else if (role === "agent") {
+        navigate("/dashboard/agent");
+      } else {
+        navigate("/dashboard/customer");
+      }
+    } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: `${errorMessage}. Using API: ${API_BASE_URL}`,
+        description: error.message || "Invalid credentials",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,8 +101,8 @@ const Login = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full">
-              Login
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Logging in..." : "Login"}
             </Button>
           </form>
           <div className="mt-4 text-center">
