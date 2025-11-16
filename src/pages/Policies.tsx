@@ -4,10 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Shield, Heart, Users, ArrowLeft, CheckCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const Policies = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const userRole = localStorage.getItem('role') || 'customer';
+  const [purchasedPolicies, setPurchasedPolicies] = useState<number[]>([]);
 
   const policies = [
     {
@@ -71,6 +74,14 @@ const Policies = () => {
       ]
     }
   ];
+
+  const handleBuyPolicy = (policy: any) => {
+    setPurchasedPolicies([...purchasedPolicies, policy.id]);
+    toast({
+      title: "Policy Purchased Successfully!",
+      description: `${policy.name} has been added to your account. You can now make payments.`,
+    });
+  };
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -157,8 +168,14 @@ const Policies = () => {
                   </div>
 
                   {/* Action Button */}
-                  <Button className="w-full mt-4">
-                    {userRole === 'customer' ? 'Buy Now' : 'Assign to Customer'}
+                  <Button 
+                    className="w-full mt-4"
+                    onClick={() => handleBuyPolicy(policy)}
+                    disabled={purchasedPolicies.includes(policy.id)}
+                  >
+                    {purchasedPolicies.includes(policy.id) 
+                      ? 'Already Purchased' 
+                      : userRole === 'customer' ? 'Buy Now' : 'Assign to Customer'}
                   </Button>
                 </div>
               </CardContent>

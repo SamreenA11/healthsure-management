@@ -20,14 +20,31 @@ const Claims = () => {
     claimDate: ""
   });
 
-  const existingClaims = [
+  const [claims, setClaims] = useState([
     { id: "CLM-1001", policy: "Premium Health Shield", amount: 25000, status: "approved", date: "2024-11-10" },
     { id: "CLM-1002", policy: "Family Care Plus", amount: 15000, status: "under_review", date: "2024-11-14" },
     { id: "CLM-1003", policy: "Premium Health Shield", amount: 8000, status: "pending", date: "2024-11-15" }
-  ];
+  ]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const policyNames: Record<string, string> = {
+      "1": "Premium Health Shield",
+      "2": "Family Care Plus",
+      "3": "Life Secure Pro"
+    };
+
+    const newClaim = {
+      id: `CLM-${1004 + claims.length}`,
+      policy: policyNames[formData.policyId] || "Unknown Policy",
+      amount: parseInt(formData.claimAmount),
+      status: "pending",
+      date: formData.claimDate
+    };
+
+    setClaims([newClaim, ...claims]);
+    
     toast({
       title: "Claim Submitted",
       description: "Your claim has been submitted successfully and is under review.",
@@ -143,7 +160,7 @@ const Claims = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {existingClaims.map((claim) => (
+                {claims.map((claim) => (
                   <div key={claim.id} className="p-4 bg-muted rounded-lg">
                     <div className="flex items-start justify-between mb-2">
                       <div>
