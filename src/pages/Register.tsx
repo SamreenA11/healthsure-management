@@ -19,55 +19,55 @@ const Register = () => {
     phone: "",
     role: "customer",
     gender: "",
-    address: ""
+    address: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('Attempting registration with API:', API_BASE_URL);
-    console.log('Form data:', { ...formData, password: '***' });
-    
+
+    console.log("Attempting registration with API:", API_BASE_URL);
+    console.log("Form data:", { ...formData, password: "***" });
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(formData),
       });
-      
-      console.log('Response status:', response.status);
-      
+
+      console.log("Response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Registration error:', errorText);
+        console.error("Registration error:", errorText);
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
           throw new Error(`Server error: ${response.status}`);
         }
-        throw new Error(errorData.error || 'Registration failed');
+        throw new Error(errorData.error || "Registration failed");
       }
-      
+
       const data = await response.json();
-      console.log('Registration successful:', data);
-      
+      console.log("Registration successful:", data);
+
       toast({
         title: "Registration Successful",
         description: "Please login to continue",
       });
-      
-      navigate('/login');
+
+      navigate("/login");
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error("Registration error:", error);
       const errorMessage = error instanceof Error ? error.message : "Please try again";
-      
+
       toast({
         title: "Registration Failed",
         description: `${errorMessage}. Using API: ${API_BASE_URL}`,
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -170,10 +170,7 @@ const Register = () => {
           <div className="mt-4 text-center">
             <p className="text-sm text-muted-foreground">
               Already have an account?{" "}
-              <button
-                onClick={() => navigate('/login')}
-                className="text-primary hover:underline"
-              >
+              <button onClick={() => navigate("/login")} className="text-primary hover:underline">
                 Login here
               </button>
             </p>
