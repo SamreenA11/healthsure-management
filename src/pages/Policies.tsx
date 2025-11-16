@@ -2,7 +2,11 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Shield, Heart, Users, ArrowLeft, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,7 +14,17 @@ const Policies = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const userRole = localStorage.getItem('role') || 'customer';
-  const [purchasedPolicies, setPurchasedPolicies] = useState<number[]>([]);
+  
+  const [selectedPolicy, setSelectedPolicy] = useState<any>(null);
+  const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+  const [purchaseForm, setPurchaseForm] = useState({
+    beneficiaryName: "",
+    beneficiaryRelation: "",
+    beneficiaryPhone: "",
+    medicalHistory: "",
+    existingConditions: "",
+    emergencyContact: ""
+  });
 
   const policies = [
     {
@@ -75,12 +89,52 @@ const Policies = () => {
     }
   ];
 
-  const handleBuyPolicy = (policy: any) => {
-    setPurchasedPolicies([...purchasedPolicies, policy.id]);
+  const handleBuyClick = (policy: any) => {
+    setSelectedPolicy(policy);
+    setShowPurchaseDialog(true);
+  };
+
+  const handlePurchaseSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const existingPolicies = JSON.parse(localStorage.getItem('myPolicies') || '[]');
+    
+    const newPolicyHolder = {
+      id: Date.now(),
+      policyId: selectedPolicy.id,
+      policyName: selectedPolicy.name,
+      type: selectedPolicy.type,
+      premium: selectedPolicy.premium,
+      coverage: selectedPolicy.coverage,
+      status: "Active",
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      beneficiaryName: purchaseForm.beneficiaryName,
+      beneficiaryRelation: purchaseForm.beneficiaryRelation,
+      beneficiaryPhone: purchaseForm.beneficiaryPhone,
+      medicalHistory: purchaseForm.medicalHistory,
+      existingConditions: purchaseForm.existingConditions,
+      emergencyContact: purchaseForm.emergencyContact
+    };
+    
+    existingPolicies.push(newPolicyHolder);
+    localStorage.setItem('myPolicies', JSON.stringify(existingPolicies));
+    
     toast({
       title: "Policy Purchased Successfully!",
-      description: `${policy.name} has been added to your account. You can now make payments.`,
+      description: `${selectedPolicy.name} has been added to your account. Check "My Policies" in your dashboard.`,
     });
+    
+    setPurchaseForm({
+      beneficiaryName: "",
+      beneficiaryRelation: "",
+      beneficiaryPhone: "",
+      medicalHistory: "",
+      existingConditions: "",
+      emergencyContact: ""
+    });
+    setShowPurchaseDialog(false);
+    setSelectedPolicy(null);
   };
 
   const getTypeColor = (type: string) => {
@@ -92,9 +146,13 @@ const Policies = () => {
     }
   };
 
+  const isPolicyPurchased = (policyId: number) => {
+    const myPolicies = JSON.parse(localStorage.getItem('myPolicies') || '[]');
+    return myPolicies.some((p: any) => p.policyId === policyId);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-4 py-4 flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -115,7 +173,6 @@ const Policies = () => {
           </p>
         </div>
 
-        {/* Policies Grid */}
         <div className="grid md:grid-cols-2 gap-6">
           {policies.map((policy) => (
             <Card key={policy.id} className="hover:shadow-lg transition-shadow">
@@ -136,7 +193,6 @@ const Policies = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {/* Pricing */}
                   <div className="flex items-baseline gap-2">
                     <span className="text-3xl font-bold text-primary">
                       ₹{policy.premium.toLocaleString('en-IN')}
@@ -146,7 +202,6 @@ const Policies = () => {
                     </span>
                   </div>
 
-                  {/* Coverage */}
                   <div className="p-3 bg-secondary rounded-lg">
                     <p className="text-sm text-muted-foreground">Coverage Amount</p>
                     <p className="text-xl font-semibold">
@@ -154,7 +209,6 @@ const Policies = () => {
                     </p>
                   </div>
 
-                  {/* Features */}
                   <div>
                     <p className="font-semibold mb-2">Key Features:</p>
                     <ul className="space-y-2">
@@ -167,13 +221,12 @@ const Policies = () => {
                     </ul>
                   </div>
 
-                  {/* Action Button */}
                   <Button 
                     className="w-full mt-4"
-                    onClick={() => handleBuyPolicy(policy)}
-                    disabled={purchasedPolicies.includes(policy.id)}
+                    onClick={() => handleBuyClick(policy)}
+                    disabled={isPolicyPurchased(policy.id)}
                   >
-                    {purchasedPolicies.includes(policy.id) 
+                    {isPolicyPurchased(policy.id) 
                       ? 'Already Purchased' 
                       : userRole === 'customer' ? 'Buy Now' : 'Assign to Customer'}
                   </Button>
@@ -183,6 +236,102 @@ const Policies = () => {
           ))}
         </div>
       </div>
+
+      <Dialog open={showPurchaseDialog} onOpenChange={setShowPurchaseDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Purchase {selectedPolicy?.name}</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handlePurchaseSubmit} className="space-y-4 mt-4">
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="beneficiaryName">Beneficiary Name *</Label>
+                <Input
+                  id="beneficiaryName"
+                  placeholder="Full Name"
+                  value={purchaseForm.beneficiaryName}
+                  onChange={(e) => setPurchaseForm({ ...purchaseForm, beneficiaryName: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="beneficiaryRelation">Relation *</Label>
+                <Input
+                  id="beneficiaryRelation"
+                  placeholder="e.g., Spouse, Parent"
+                  value={purchaseForm.beneficiaryRelation}
+                  onChange={(e) => setPurchaseForm({ ...purchaseForm, beneficiaryRelation: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="beneficiaryPhone">Beneficiary Phone *</Label>
+              <Input
+                id="beneficiaryPhone"
+                type="tel"
+                placeholder="+91 98765 43210"
+                value={purchaseForm.beneficiaryPhone}
+                onChange={(e) => setPurchaseForm({ ...purchaseForm, beneficiaryPhone: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="emergencyContact">Emergency Contact *</Label>
+              <Input
+                id="emergencyContact"
+                type="tel"
+                placeholder="+91 98765 43210"
+                value={purchaseForm.emergencyContact}
+                onChange={(e) => setPurchaseForm({ ...purchaseForm, emergencyContact: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="medicalHistory">Medical History</Label>
+              <Textarea
+                id="medicalHistory"
+                placeholder="Any previous surgeries, hospitalizations, or ongoing treatments..."
+                value={purchaseForm.medicalHistory}
+                onChange={(e) => setPurchaseForm({ ...purchaseForm, medicalHistory: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="existingConditions">Existing Medical Conditions</Label>
+              <Textarea
+                id="existingConditions"
+                placeholder="Diabetes, Hypertension, Asthma, etc."
+                value={purchaseForm.existingConditions}
+                onChange={(e) => setPurchaseForm({ ...purchaseForm, existingConditions: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            <div className="p-4 bg-muted rounded-lg">
+              <p className="font-semibold mb-2">Policy Summary</p>
+              <div className="space-y-1 text-sm">
+                <p>Premium: ₹{selectedPolicy?.premium.toLocaleString('en-IN')}/year</p>
+                <p>Coverage: ₹{selectedPolicy?.coverage.toLocaleString('en-IN')}</p>
+                <p>Duration: {selectedPolicy?.duration} {selectedPolicy?.duration === 1 ? 'year' : 'years'}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowPurchaseDialog(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button type="submit" className="flex-1">
+                Confirm Purchase
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

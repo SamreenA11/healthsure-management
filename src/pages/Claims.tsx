@@ -40,14 +40,21 @@ const Claims = () => {
       policy: policyNames[formData.policyId] || "Unknown Policy",
       amount: parseInt(formData.claimAmount),
       status: "pending",
-      date: formData.claimDate
+      date: formData.claimDate,
+      reason: formData.reason
     };
 
+    // Add to local state
     setClaims([newClaim, ...claims]);
+    
+    // Also save to localStorage so it shows in dashboard
+    const existingClaims = JSON.parse(localStorage.getItem('myClaims') || '[]');
+    existingClaims.push(newClaim);
+    localStorage.setItem('myClaims', JSON.stringify(existingClaims));
     
     toast({
       title: "Claim Submitted",
-      description: "Your claim has been submitted successfully and is under review.",
+      description: "Your claim has been submitted successfully and is under review. Check your dashboard for updates.",
     });
     setFormData({ policyId: "", claimAmount: "", reason: "", claimDate: "" });
   };
@@ -88,15 +95,22 @@ const Claims = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="policy">Select Policy</Label>
+                  <Label htmlFor="policy">Select Your Policy</Label>
                   <Select onValueChange={(value) => setFormData({ ...formData, policyId: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Choose your policy" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">Premium Health Shield</SelectItem>
-                      <SelectItem value="2">Family Care Plus</SelectItem>
-                      <SelectItem value="3">Life Secure Pro</SelectItem>
+                      {JSON.parse(localStorage.getItem('myPolicies') || '[]').map((policy: any) => (
+                        <SelectItem key={policy.id} value={policy.id.toString()}>
+                          {policy.policyName}
+                        </SelectItem>
+                      ))}
+                      {JSON.parse(localStorage.getItem('myPolicies') || '[]').length === 0 && (
+                        <SelectItem value="none" disabled>
+                          No policies found - Purchase a policy first
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
