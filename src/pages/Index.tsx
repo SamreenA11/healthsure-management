@@ -70,7 +70,7 @@ const Index = () => {
           <Button size="lg" className="text-lg px-8" onClick={() => navigate('/register')}>
             Get Insured Now
           </Button>
-          <Button size="lg" variant="outline" className="text-lg px-8">
+          <Button size="lg" variant="outline" className="text-lg px-8" onClick={() => navigate('/policies')}>
             View Plans
           </Button>
         </div>
