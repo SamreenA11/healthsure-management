@@ -1,17 +1,19 @@
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+
 const router = express.Router();
-const { pool } = require('../server');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // Get all policies
 router.get('/', async (req, res) => {
   try {
-    const [policies] = await pool.execute(
+    const [rows] = await db.execute(
       'SELECT * FROM policies WHERE status = "active" ORDER BY created_at DESC'
     );
-    res.json(policies);
+    res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
@@ -19,7 +21,7 @@ router.get('/', async (req, res) => {
 router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const [policies] = await pool.execute(
+    const [policies] = await db.execute(
       'SELECT * FROM policies WHERE policy_id = ?',
       [id]
     );
@@ -32,19 +34,19 @@ router.get('/:id', async (req, res) => {
     
     // Get type-specific details
     if (policy.type === 'health') {
-      const [healthDetails] = await pool.execute(
+      const [healthDetails] = await db.execute(
         'SELECT * FROM health_policies WHERE policy_id = ?',
         [id]
       );
       policy.details = healthDetails[0] || null;
     } else if (policy.type === 'life') {
-      const [lifeDetails] = await pool.execute(
+      const [lifeDetails] = await db.execute(
         'SELECT * FROM life_policies WHERE policy_id = ?',
         [id]
       );
       policy.details = lifeDetails[0] || null;
     } else if (policy.type === 'family') {
-      const [familyDetails] = await pool.execute(
+      const [familyDetails] = await db.execute(
         'SELECT * FROM family_policies WHERE policy_id = ?',
         [id]
       );
@@ -61,7 +63,7 @@ router.get('/:id', async (req, res) => {
 router.get('/customer/:customerId', authMiddleware, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const [purchasedPolicies] = await pool.execute(
+    const [purchasedPolicies] = await db.execute(
       `SELECT pp.*, p.name, p.type, p.coverage_amount, p.duration_years
        FROM purchased_policies pp
        JOIN policies p ON pp.policy_id = p.policy_id
@@ -80,7 +82,7 @@ router.post('/purchase', authMiddleware, async (req, res) => {
   try {
     const { customer_id, policy_id, start_date, premium_amount } = req.body;
     
-    const [result] = await pool.execute(
+    const [result] = await db.execute(
       `INSERT INTO purchased_policies 
        (customer_id, policy_id, start_date, premium_amount, status) 
        VALUES (?, ?, ?, ?, 'active')`,
@@ -101,7 +103,7 @@ router.post('/', authMiddleware, roleMiddleware(['admin']), async (req, res) => 
   try {
     const { name, type, description, base_premium, coverage_amount, duration_years } = req.body;
     
-    const [result] = await pool.execute(
+    const [result] = await db.execute(
       `INSERT INTO policies 
        (name, type, description, base_premium, coverage_amount, duration_years) 
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -123,7 +125,7 @@ router.put('/:id', authMiddleware, roleMiddleware(['admin']), async (req, res) =
     const { id } = req.params;
     const { name, description, base_premium, coverage_amount, status } = req.body;
     
-    await pool.execute(
+    await db.execute(
       `UPDATE policies 
        SET name = ?, description = ?, base_premium = ?, coverage_amount = ?, status = ?
        WHERE policy_id = ?`,
@@ -136,4 +138,4 @@ router.put('/:id', authMiddleware, roleMiddleware(['admin']), async (req, res) =
   }
 });
 
-module.exports = router;
+export default router;

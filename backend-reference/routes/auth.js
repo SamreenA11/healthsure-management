@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+import db from '../config/db.js';
+
 const router = express.Router();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { pool } = require('../server');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -13,7 +14,7 @@ router.post('/register', async (req, res) => {
     const password_hash = await bcrypt.hash(password, 10);
     
     // Insert user
-    const [userResult] = await pool.execute(
+    const [userResult] = await db.execute(
       'INSERT INTO users (email, password_hash, role) VALUES (?, ?, ?)',
       [email, password_hash, role]
     );
@@ -22,12 +23,12 @@ router.post('/register', async (req, res) => {
     
     // Insert role-specific data
     if (role === 'agent') {
-      await pool.execute(
+      await db.execute(
         'INSERT INTO agents (user_id, name, phone, branch) VALUES (?, ?, ?, ?)',
         [userId, name, phone, 'Main']
       );
     } else if (role === 'customer') {
-      await pool.execute(
+      await db.execute(
         'INSERT INTO customers (user_id, name, gender, phone, address, date_of_birth) VALUES (?, ?, ?, ?, ?, ?)',
         [userId, name, gender, phone, address, new Date()]
       );
@@ -45,7 +46,7 @@ router.post('/login', async (req, res) => {
     const { email, password } = req.body;
     
     // Find user
-    const [users] = await pool.execute(
+    const [users] = await db.execute(
       'SELECT * FROM users WHERE email = ?',
       [email]
     );
@@ -82,4 +83,4 @@ router.post('/login', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

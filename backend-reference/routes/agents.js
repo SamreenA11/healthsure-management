@@ -1,12 +1,13 @@
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+
 const router = express.Router();
-const { pool } = require('../server');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // Get all agents (admin only)
 router.get('/', authMiddleware, roleMiddleware(['admin']), async (req, res) => {
   try {
-    const [agents] = await pool.execute(
+    const [agents] = await db.execute(
       `SELECT a.*, u.email, u.status,
        COUNT(DISTINCT c.customer_id) as customer_count
        FROM agents a
@@ -25,7 +26,7 @@ router.get('/', authMiddleware, roleMiddleware(['admin']), async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const [agents] = await pool.execute(
+    const [agents] = await db.execute(
       `SELECT a.*, u.email, u.status
        FROM agents a
        JOIN users u ON a.user_id = u.user_id
@@ -47,7 +48,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 router.get('/user/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
-    const [agents] = await pool.execute(
+    const [agents] = await db.execute(
       `SELECT a.*, u.email, u.status
        FROM agents a
        JOIN users u ON a.user_id = u.user_id
@@ -69,7 +70,7 @@ router.get('/user/:userId', authMiddleware, async (req, res) => {
 router.get('/:id/customers', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const [customers] = await pool.execute(
+    const [customers] = await db.execute(
       `SELECT c.*, u.email
        FROM customers c
        JOIN users u ON c.user_id = u.user_id
@@ -89,7 +90,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { name, phone, branch } = req.body;
     
-    await pool.execute(
+    await db.execute(
       'UPDATE agents SET name = ?, phone = ?, branch = ? WHERE agent_id = ?',
       [name, phone, branch, id]
     );
@@ -106,7 +107,7 @@ router.put('/:id/commission', authMiddleware, roleMiddleware(['admin']), async (
     const { id } = req.params;
     const { commission_rate } = req.body;
     
-    await pool.execute(
+    await db.execute(
       'UPDATE agents SET commission_rate = ? WHERE agent_id = ?',
       [commission_rate, id]
     );
@@ -117,4 +118,4 @@ router.put('/:id/commission', authMiddleware, roleMiddleware(['admin']), async (
   }
 });
 
-module.exports = router;
+export default router;

@@ -1,33 +1,26 @@
-// Node.js + Express Backend Reference
+// Node.js + Express Backend
 // Deploy this on Render or any Node.js hosting
 
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql2/promise');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
 app.use(express.json());
 
-// Database connection pool
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
-
 // Test database connection
+import db from './config/db.js';
+
 app.get('/api/health', async (req, res) => {
   try {
-    const connection = await pool.getConnection();
+    const connection = await db.getConnection();
     connection.release();
     res.json({ status: 'OK', message: 'Database connected' });
   } catch (error) {
@@ -36,13 +29,13 @@ app.get('/api/health', async (req, res) => {
 });
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const policyRoutes = require('./routes/policies');
-const customerRoutes = require('./routes/customers');
-const agentRoutes = require('./routes/agents');
-const claimRoutes = require('./routes/claims');
-const paymentRoutes = require('./routes/payments');
-const supportRoutes = require('./routes/support');
+import authRoutes from './routes/auth.js';
+import policyRoutes from './routes/policies.js';
+import customerRoutes from './routes/customers.js';
+import agentRoutes from './routes/agents.js';
+import claimRoutes from './routes/claims.js';
+import paymentRoutes from './routes/payments.js';
+import supportRoutes from './routes/support.js';
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -62,5 +55,3 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-module.exports = { pool };
