@@ -1,74 +1,74 @@
 // API Configuration
 // Update VITE_API_URL in .env to point to your deployed backend
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://healthsure-management.onrender.com';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || "https://healthsure-management.onrender.com/api";
 
 export const apiClient = {
   get: async (endpoint: string) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
-        'Content-Type': 'application/json',
+        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json",
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
-  
+
   post: async (endpoint: string, data: any) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
       },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
-  
+
   put: async (endpoint: string, data: any) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'PUT',
+      method: "PUT",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : '',
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
       },
       body: JSON.stringify(data),
     });
-    
+
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
-  
+
   delete: async (endpoint: string) => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Authorization': token ? `Bearer ${token}` : '',
+        Authorization: token ? `Bearer ${token}` : "",
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`API error: ${response.statusText}`);
     }
-    
+
     return response.json();
   },
 };
