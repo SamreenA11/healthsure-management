@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/config/api";
+import { registerUser } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -21,54 +22,38 @@ const Register = () => {
     gender: "",
     address: "",
   });
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Check if user is already logged in
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        navigate("/");
+      }
+    });
+  }, [navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    console.log("Attempting registration with API:", API_BASE_URL);
-    console.log("Form data:", { ...formData, password: "***" });
+    setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
-
-      console.log("Response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Registration error:", errorText);
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          throw new Error(`Server error: ${response.status}`);
-        }
-        throw new Error(errorData.error || "Registration failed");
-      }
-
-      const data = await response.json();
-      console.log("Registration successful:", data);
+      await registerUser(formData);
 
       toast({
         title: "Registration Successful",
-        description: "Please login to continue",
+        description: "Logging you in...",
       });
 
-      navigate("/login");
-    } catch (error) {
-      console.error("Registration error:", error);
-      const errorMessage = error instanceof Error ? error.message : "Please try again";
-
+      navigate("/");
+    } catch (error: any) {
       toast({
         title: "Registration Failed",
-        description: `${errorMessage}. Using API: ${API_BASE_URL}`,
+        description: error.message || "Please try again",
         variant: "destructive",
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -163,8 +148,8 @@ const Register = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full">
-              Create Account
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Creating account..." : "Create Account"}
             </Button>
           </form>
           <div className="mt-4 text-center">
