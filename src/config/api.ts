@@ -1,7 +1,7 @@
 // API Configuration
 // Update VITE_API_URL in .env to point to your deployed backend
 
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://healthsure-management.onrender.com';
 
 export const apiClient = {
   get: async (endpoint: string) => {
