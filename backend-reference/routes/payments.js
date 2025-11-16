@@ -3,139 +3,161 @@ const router = express.Router();
 const { pool } = require('../server');
 const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
+// Input validation helper
+const validateId = (id) => {
+  const numId = parseInt(id, 10);
+  if (isNaN(numId) || numId < 1) {
+    throw new Error('Invalid ID format');
+  }
+  return numId;
+};
+
+const validateAmount = (amount) => {
+  const numAmount = parseFloat(amount);
+  if (isNaN(numAmount) || numAmount < 0) {
+    throw new Error('Invalid amount');
+  }
+  return numAmount;
+};
+
 // Get all payments (admin only)
 router.get('/', authMiddleware, roleMiddleware(['admin']), async (req, res) => {
   try {
-    const [payments] = await pool.execute(
-      `SELECT pay.*, c.name as customer_name, p.name as policy_name
-       FROM payments pay
-       JOIN purchased_policies pp ON pay.purchased_policy_id = pp.purchased_policy_id
-       JOIN customers c ON pp.customer_id = c.customer_id
-       JOIN policies p ON pp.policy_id = p.policy_id
-       ORDER BY pay.payment_date DESC`
-    );
+    const query = `SELECT pay.*, c.name as customer_name, p.name as policy_name
+                   FROM payments pay
+                   JOIN purchased_policies pp ON pay.purchased_policy_id = pp.purchased_policy_id
+                   JOIN customers c ON pp.customer_id = c.customer_id
+                   JOIN policies p ON pp.policy_id = p.policy_id
+                   ORDER BY pay.payment_date DESC`;
+    const [payments] = await pool.execute(query);
     res.json(payments);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch payments' });
   }
 });
 
 // Get payments by customer ID
 router.get('/customer/:customerId', authMiddleware, async (req, res) => {
   try {
-    const { customerId } = req.params;
-    const [payments] = await pool.execute(
-      `SELECT pay.*, p.name as policy_name, pp.purchased_policy_id
-       FROM payments pay
-       JOIN purchased_policies pp ON pay.purchased_policy_id = pp.purchased_policy_id
-       JOIN policies p ON pp.policy_id = p.policy_id
-       WHERE pp.customer_id = ?
-       ORDER BY pay.payment_date DESC`,
-      [customerId]
-    );
+    const customerId = validateId(req.params.customerId);
+    const query = `SELECT pay.*, p.name as policy_name, pp.purchased_policy_id
+                   FROM payments pay
+                   JOIN purchased_policies pp ON pay.purchased_policy_id = pp.purchased_policy_id
+                   JOIN policies p ON pp.policy_id = p.policy_id
+                   WHERE pp.customer_id = ?
+                   ORDER BY pay.payment_date DESC`;
+    const [payments] = await pool.execute(query, [customerId]);
     res.json(payments);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
 // Get payments by purchased policy ID
 router.get('/policy/:purchasedPolicyId', authMiddleware, async (req, res) => {
   try {
-    const { purchasedPolicyId } = req.params;
-    const [payments] = await pool.execute(
-      'SELECT * FROM payments WHERE purchased_policy_id = ? ORDER BY payment_date DESC',
-      [purchasedPolicyId]
-    );
+    const policyId = validateId(req.params.purchasedPolicyId);
+    const query = 'SELECT * FROM payments WHERE purchased_policy_id = ? ORDER BY payment_date DESC';
+    const [payments] = await pool.execute(query, [policyId]);
     res.json(payments);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
 // Get payment by ID
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
-    const [payments] = await pool.execute(
-      `SELECT pay.*, c.name as customer_name, p.name as policy_name
-       FROM payments pay
-       JOIN purchased_policies pp ON pay.purchased_policy_id = pp.purchased_policy_id
-       JOIN customers c ON pp.customer_id = c.customer_id
-       JOIN policies p ON pp.policy_id = p.policy_id
-       WHERE pay.payment_id = ?`,
-      [id]
-    );
+    const paymentId = validateId(req.params.id);
+    const query = `SELECT pay.*, c.name as customer_name, p.name as policy_name
+                   FROM payments pay
+                   JOIN purchased_policies pp ON pay.purchased_policy_id = pp.purchased_policy_id
+                   JOIN customers c ON pp.customer_id = c.customer_id
+                   JOIN policies p ON pp.policy_id = p.policy_id
+                   WHERE pay.payment_id = ?`;
+    const [payments] = await pool.execute(query, [paymentId]);
     
     if (payments.length === 0) {
-      return res.status(404).json({ error: 'Payment not found' });
+      return res.status(404).json({ error: 'Payment record not found' });
     }
     
     res.json(payments[0]);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
-// Record a new payment
+// Create new payment record
 router.post('/', authMiddleware, async (req, res) => {
   try {
-    const { 
-      purchased_policy_id, 
-      amount, 
-      payment_method, 
-      transaction_id 
-    } = req.body;
+    const { purchased_policy_id, amount, payment_method, transaction_id } = req.body;
     
-    const [result] = await pool.execute(
-      `INSERT INTO payments 
-       (purchased_policy_id, amount, payment_method, transaction_id, status) 
-       VALUES (?, ?, ?, ?, 'completed')`,
-      [purchased_policy_id, amount, payment_method, transaction_id]
-    );
+    // Validate inputs
+    if (!purchased_policy_id || !amount || !payment_method) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const validatedPolicyId = validateId(purchased_policy_id);
+    const validatedAmount = validateAmount(amount);
+    
+    if (payment_method.length > 50) {
+      return res.status(400).json({ error: 'Payment method too long' });
+    }
+    
+    const query = `INSERT INTO payments 
+                   (purchased_policy_id, amount, payment_method, transaction_id, status) 
+                   VALUES (?, ?, ?, ?, 'completed')`;
+    const [result] = await pool.execute(query, [
+      validatedPolicyId, 
+      validatedAmount, 
+      payment_method, 
+      transaction_id || null
+    ]);
     
     res.status(201).json({ 
       message: 'Payment recorded successfully',
       paymentId: result.insertId 
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
 // Update payment status
 router.put('/:id/status', authMiddleware, async (req, res) => {
   try {
-    const { id } = req.params;
+    const paymentId = validateId(req.params.id);
     const { status } = req.body;
     
-    await pool.execute(
-      'UPDATE payments SET status = ? WHERE payment_id = ?',
-      [status, id]
-    );
+    const validStatuses = ['pending', 'completed', 'failed', 'refunded'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Invalid status value' });
+    }
+    
+    const query = 'UPDATE payments SET status = ? WHERE payment_id = ?';
+    await pool.execute(query, [status, paymentId]);
     
     res.json({ message: 'Payment status updated successfully' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
 // Get payment statistics (admin only)
 router.get('/stats/summary', authMiddleware, roleMiddleware(['admin']), async (req, res) => {
   try {
-    const [stats] = await pool.execute(
-      `SELECT 
-        COUNT(*) as total_payments,
-        SUM(amount) as total_amount,
-        AVG(amount) as average_amount,
-        SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_amount,
-        SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount
-       FROM payments
-       WHERE payment_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
-    );
+    const query = `SELECT 
+                    COUNT(*) as total_payments,
+                    SUM(amount) as total_amount,
+                    AVG(amount) as average_amount,
+                    SUM(CASE WHEN status = 'completed' THEN amount ELSE 0 END) as completed_amount,
+                    SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount
+                   FROM payments
+                   WHERE payment_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)`;
+    const [stats] = await pool.execute(query);
     res.json(stats[0]);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
 
