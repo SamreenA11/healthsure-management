@@ -13,58 +13,58 @@ const Login = () => {
   const { toast } = useToast();
   const [formData, setFormData] = useState({
     email: "",
-    password: ""
+    password: "",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    console.log('Attempting login with API:', API_BASE_URL);
-    
+
+    console.log("Attempting login with API:", API_BASE_URL);
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
       });
-      
-      console.log('Login response status:', response.status);
-      
+
+      console.log("Login response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Login error:', errorText);
+        console.error("Login error:", errorText);
         let errorData;
         try {
           errorData = JSON.parse(errorText);
         } catch {
           throw new Error(`Server error: ${response.status}`);
         }
-        throw new Error(errorData.error || 'Login failed');
+        throw new Error(errorData.error || "Login failed");
       }
-      
+
       const data = await response.json();
-      console.log('Login successful, user role:', data.user.role);
-      
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('role', data.user.role);
-      localStorage.setItem('email', data.user.email);
-      localStorage.setItem('userId', data.user.id);
-      
+      console.log("Login successful, user role:", data.user.role);
+
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("role", data.user.role);
+      localStorage.setItem("email", data.user.email);
+      localStorage.setItem("userId", data.user.id);
+
       toast({
         title: "Login Successful",
         description: `Welcome back ${data.user.role}!`,
       });
-      
+
       // Navigate based on role
       navigate(`/dashboard/${data.user.role}`);
     } catch (error) {
-      console.error('Login error:', error);
+      console.error("Login error:", error);
       const errorMessage = error instanceof Error ? error.message : "Invalid credentials";
-      
+
       toast({
         title: "Login Failed",
         description: `${errorMessage}. Using API: ${API_BASE_URL}`,
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
@@ -110,10 +110,7 @@ const Login = () => {
           <div className="mt-4 text-center">
             <p className="text-sm text-muted-foreground">
               Don't have an account?{" "}
-              <button
-                onClick={() => navigate('/register')}
-                className="text-primary hover:underline"
-              >
+              <button onClick={() => navigate("/register")} className="text-primary hover:underline">
                 Register here
               </button>
             </p>
