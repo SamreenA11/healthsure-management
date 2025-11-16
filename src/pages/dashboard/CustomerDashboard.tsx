@@ -2,20 +2,59 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Shield, FileText, DollarSign, MessageSquare, LogOut, Plus } from "lucide-react";
+import { Shield, FileText, DollarSign, MessageSquare, LogOut, Plus, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/config/api";
 
 const CustomerDashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [myPolicies, setMyPolicies] = useState<any[]>([]);
   const [myClaims, setMyClaims] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const userId = localStorage.getItem('userId');
 
   useEffect(() => {
-    const policies = JSON.parse(localStorage.getItem('myPolicies') || '[]');
-    const claims = JSON.parse(localStorage.getItem('myClaims') || '[]');
-    setMyPolicies(policies);
-    setMyClaims(claims);
-  }, []);
+    if (!userId) {
+      toast({
+        title: "Not logged in",
+        description: "Please login to view your dashboard",
+        variant: "destructive"
+      });
+      navigate('/login');
+      return;
+    }
+    
+    fetchDashboardData();
+  }, [userId]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch customer's purchased policies
+      const policiesData = await apiClient.get(`/api/policies/customer/${userId}`);
+      setMyPolicies(policiesData || []);
+      
+      // Get customer ID first
+      const customerData = await apiClient.get(`/api/customers/user/${userId}`);
+      if (customerData?.customer_id) {
+        // Fetch customer's claims
+        const claimsData = await apiClient.get(`/api/claims/customer/${customerData.customer_id}`);
+        setMyClaims(claimsData || []);
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -34,6 +73,17 @@ const CustomerDashboard = () => {
       default: return 'text-muted-foreground';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -126,29 +176,29 @@ const CustomerDashboard = () => {
             ) : (
               <div className="space-y-4">
                 {myPolicies.map((policy) => (
-                  <div key={policy.id} className="p-4 bg-muted rounded-lg">
+                  <div key={policy.purchased_policy_id} className="p-4 bg-muted rounded-lg">
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-lg">{policy.policyName}</p>
+                          <p className="font-semibold text-lg">{policy.name || policy.policy_name}</p>
                           <Badge className="bg-success text-success-foreground">
-                            {policy.status}
+                            {policy.status || 'Active'}
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground capitalize">{policy.type} Insurance</p>
                         <p className="text-sm text-muted-foreground">
-                          Valid: {policy.startDate} to {policy.endDate}
+                          Valid: {new Date(policy.start_date).toLocaleDateString()} to {new Date(policy.end_date).toLocaleDateString()}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-lg">₹{policy.premium.toLocaleString('en-IN')}</p>
+                        <p className="font-semibold text-lg">₹{(policy.premium_amount || policy.premium)?.toLocaleString('en-IN')}</p>
                         <p className="text-sm text-muted-foreground">per year</p>
                       </div>
                     </div>
                     <div className="grid md:grid-cols-2 gap-3 text-sm border-t pt-3">
                       <div>
                         <p className="text-muted-foreground">Coverage Amount</p>
-                        <p className="font-semibold">₹{policy.coverage.toLocaleString('en-IN')}</p>
+                        <p className="font-semibold">₹{(policy.sum_insured || policy.coverage_amount)?.toLocaleString('en-IN')}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Beneficiary</p>
