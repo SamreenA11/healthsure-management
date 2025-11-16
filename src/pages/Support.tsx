@@ -7,14 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, ArrowLeft, MessageSquare } from "lucide-react";
+import { Shield, ArrowLeft, MessageSquare, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/config/api";
+import { supabase } from "@/integrations/supabase/client";
 
 const Support = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const token = localStorage.getItem('token');
   const [formData, setFormData] = useState({
     subject: "",
     priority: "medium",
@@ -23,25 +22,54 @@ const Support = () => {
 
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [customer, setCustomer] = useState<any>(null);
 
   useEffect(() => {
-    fetchTickets();
+    checkAuth();
   }, []);
 
-  const fetchTickets = async () => {
-    try {
-      const userId = localStorage.getItem('userId');
-      const response = await fetch(`${API_BASE_URL}/api/support`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        title: "Not logged in",
+        description: "Please login to access support",
+        variant: "destructive"
       });
-      const data = await response.json();
-      setTickets(data);
+      navigate('/login');
+      return;
+    }
+    setUser(user);
+    fetchData(user.id);
+  };
+
+  const fetchData = async (userId: string) => {
+    try {
+      setLoading(true);
+      
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      setCustomer(customerData);
+
+      if (customerData) {
+        const { data: ticketsData } = await supabase
+          .from('support_queries')
+          .select('*')
+          .eq('customer_id', customerData.id)
+          .order('created_at', { ascending: false });
+        setTickets(ticketsData || []);
+      }
     } catch (error) {
+      console.error('Error fetching data:', error);
       toast({
         title: "Error",
-        description: "Failed to load tickets",
+        description: "Failed to load support tickets",
         variant: "destructive"
       });
     } finally {
@@ -52,23 +80,21 @@ const Support = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!customer) return;
+    
+    setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/support`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
+      const { error } = await supabase
+        .from('support_queries')
+        .insert({
+          customer_id: customer.id,
           subject: formData.subject,
-          description: formData.message,
-          priority: formData.priority
-        })
-      });
+          message: formData.message,
+          priority: formData.priority as any,
+          status: 'open'
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to create ticket');
-      }
+      if (error) throw error;
 
       toast({
         title: "Ticket Created",
@@ -76,33 +102,56 @@ const Support = () => {
       });
       
       setFormData({ subject: "", priority: "medium", message: "" });
-      fetchTickets();
-    } catch (error) {
+      fetchData(user.id);
+    } catch (error: any) {
+      console.error('Ticket creation error:', error);
       toast({
         title: "Submission Failed",
-        description: error instanceof Error ? error.message : "Failed to create ticket",
+        description: error.message || "Failed to create ticket",
         variant: "destructive"
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'resolved': return 'bg-success text-success-foreground';
-      case 'in_progress': return 'bg-warning text-warning-foreground';
-      case 'open': return 'bg-primary text-primary-foreground';
-      default: return 'bg-muted text-muted-foreground';
+      case 'resolved': 
+        return 'bg-success text-success-foreground';
+      case 'in_progress': 
+        return 'bg-warning text-warning-foreground';
+      case 'open': 
+        return 'bg-primary text-primary-foreground';
+      case 'closed':
+        return 'bg-muted text-muted-foreground';
+      default: 
+        return 'bg-muted text-muted-foreground';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'text-destructive';
-      case 'high': return 'text-warning';
-      case 'medium': return 'text-primary';
-      default: return 'text-muted-foreground';
+      case 'urgent': 
+        return 'text-destructive';
+      case 'high': 
+        return 'text-warning';
+      case 'medium': 
+        return 'text-primary';
+      case 'low':
+        return 'text-muted-foreground';
+      default: 
+        return 'text-muted-foreground';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -119,14 +168,10 @@ const Support = () => {
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Create Ticket */}
+        <div className="grid md:grid-cols-2 gap-8">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-5 w-5" />
-                Create Support Ticket
-              </CardTitle>
+              <CardTitle>Create Support Ticket</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -143,8 +188,8 @@ const Support = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="priority">Priority</Label>
-                  <Select 
-                    defaultValue="medium"
+                  <Select
+                    value={formData.priority}
                     onValueChange={(value) => setFormData({ ...formData, priority: value })}
                   >
                     <SelectTrigger>
@@ -171,58 +216,63 @@ const Support = () => {
                   />
                 </div>
 
-                <Button type="submit" className="w-full">
-                  Submit Ticket
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Ticket"
+                  )}
                 </Button>
               </form>
-
-              <div className="mt-6 p-4 bg-primary-light rounded-lg">
-                <p className="font-semibold mb-2">Need immediate help?</p>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Call our 24/7 helpline: <strong>1800-XXX-XXXX</strong>
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Email: support@healthsure.com
-                </p>
-              </div>
             </CardContent>
           </Card>
 
-          {/* My Tickets */}
           <Card>
             <CardHeader>
-              <CardTitle>My Tickets</CardTitle>
+              <CardTitle>My Support Tickets</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {tickets.map((ticket) => (
-                  <div key={ticket.id} className="p-4 bg-muted rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-semibold">{ticket.id}</p>
-                        <p className="text-sm mt-1">{ticket.subject}</p>
+              {tickets.length === 0 ? (
+                <div className="text-center py-8">
+                  <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                  <p className="text-muted-foreground">No tickets yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {tickets.map((ticket) => (
+                    <div key={ticket.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{ticket.subject}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(ticket.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex flex-col gap-2 items-end">
+                          <Badge className={getStatusColor(ticket.status)}>
+                            {ticket.status.replace('_', ' ')}
+                          </Badge>
+                          <span className={`text-xs font-medium ${getPriorityColor(ticket.priority)}`}>
+                            {ticket.priority}
+                          </span>
+                        </div>
                       </div>
-                      <Badge className={getStatusColor(ticket.status)}>
-                        {ticket.status.replace('_', ' ')}
-                      </Badge>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {ticket.message}
+                      </p>
+                      {ticket.response && (
+                        <div className="mt-3 p-3 bg-muted rounded-lg">
+                          <p className="text-xs font-medium text-primary mb-1">Response:</p>
+                          <p className="text-sm">{ticket.response}</p>
+                        </div>
+                      )}
                     </div>
-                    
-                    {ticket.response && (
-                      <div className="mt-3 p-3 bg-background rounded border-l-4 border-primary">
-                        <p className="text-sm font-semibold mb-1">Response:</p>
-                        <p className="text-sm text-muted-foreground">{ticket.response}</p>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between items-center mt-3 text-sm">
-                      <span className={getPriorityColor(ticket.priority)}>
-                        Priority: {ticket.priority}
-                      </span>
-                      <span className="text-muted-foreground">{ticket.date}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
