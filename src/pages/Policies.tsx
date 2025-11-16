@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,14 +9,18 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Shield, Heart, Users, ArrowLeft, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/api";
 
 const Policies = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const userRole = localStorage.getItem('role') || 'customer';
+  const token = localStorage.getItem('token');
   
   const [selectedPolicy, setSelectedPolicy] = useState<any>(null);
   const [showPurchaseDialog, setShowPurchaseDialog] = useState(false);
+  const [policies, setPolicies] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [purchaseForm, setPurchaseForm] = useState({
     beneficiaryName: "",
     beneficiaryRelation: "",
@@ -26,7 +30,27 @@ const Policies = () => {
     emergencyContact: ""
   });
 
-  const policies = [
+  useEffect(() => {
+    fetchPolicies();
+  }, []);
+
+  const fetchPolicies = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/policies`);
+      const data = await response.json();
+      setPolicies(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load policies",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const mockPolicies = [
     {
       id: 1,
       name: "Premium Health Shield",
@@ -94,47 +118,49 @@ const Policies = () => {
     setShowPurchaseDialog(true);
   };
 
-  const handlePurchaseSubmit = (e: React.FormEvent) => {
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const existingPolicies = JSON.parse(localStorage.getItem('myPolicies') || '[]');
-    
-    const newPolicyHolder = {
-      id: Date.now(),
-      policyId: selectedPolicy.id,
-      policyName: selectedPolicy.name,
-      type: selectedPolicy.type,
-      premium: selectedPolicy.premium,
-      coverage: selectedPolicy.coverage,
-      status: "Active",
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      beneficiaryName: purchaseForm.beneficiaryName,
-      beneficiaryRelation: purchaseForm.beneficiaryRelation,
-      beneficiaryPhone: purchaseForm.beneficiaryPhone,
-      medicalHistory: purchaseForm.medicalHistory,
-      existingConditions: purchaseForm.existingConditions,
-      emergencyContact: purchaseForm.emergencyContact
-    };
-    
-    existingPolicies.push(newPolicyHolder);
-    localStorage.setItem('myPolicies', JSON.stringify(existingPolicies));
-    
-    toast({
-      title: "Policy Purchased Successfully!",
-      description: `${selectedPolicy.name} has been added to your account. Check "My Policies" in your dashboard.`,
-    });
-    
-    setPurchaseForm({
-      beneficiaryName: "",
-      beneficiaryRelation: "",
-      beneficiaryPhone: "",
-      medicalHistory: "",
-      existingConditions: "",
-      emergencyContact: ""
-    });
-    setShowPurchaseDialog(false);
-    setSelectedPolicy(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/policies/purchase`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          policy_id: selectedPolicy.policy_id,
+          sum_insured: selectedPolicy.coverage_amount,
+          ...purchaseForm
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to purchase policy');
+      }
+
+      toast({
+        title: "Policy Purchased Successfully!",
+        description: `${selectedPolicy.name} has been added to your account. Check "My Policies" in your dashboard.`,
+      });
+      
+      setPurchaseForm({
+        beneficiaryName: "",
+        beneficiaryRelation: "",
+        beneficiaryPhone: "",
+        medicalHistory: "",
+        existingConditions: "",
+        emergencyContact: ""
+      });
+      setShowPurchaseDialog(false);
+      setSelectedPolicy(null);
+    } catch (error) {
+      toast({
+        title: "Purchase Failed",
+        description: error instanceof Error ? error.message : "Failed to purchase policy",
+        variant: "destructive"
+      });
+    }
   };
 
   const getTypeColor = (type: string) => {
