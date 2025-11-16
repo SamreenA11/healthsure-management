@@ -7,48 +7,79 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, ArrowLeft, FileText, Upload } from "lucide-react";
+import { Shield, ArrowLeft, FileText, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { API_BASE_URL } from "@/config/api";
+import { supabase } from "@/integrations/supabase/client";
 
 const Claims = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const token = localStorage.getItem('token');
   const [formData, setFormData] = useState({
-    policyId: "",
+    policyHolderId: "",
     claimAmount: "",
-    reason: "",
-    claimDate: "",
+    incidentDescription: "",
+    incidentDate: "",
     hospitalName: ""
   });
 
   const [claims, setClaims] = useState<any[]>([]);
+  const [policyHolders, setPolicyHolders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [customer, setCustomer] = useState<any>(null);
 
   useEffect(() => {
-    fetchClaims();
+    checkAuth();
   }, []);
 
-  const fetchClaims = async () => {
-    try {
-      console.log('Fetching claims from:', `${API_BASE_URL}/api/claims`);
-      const userId = localStorage.getItem('userId');
-      const response = await fetch(`${API_BASE_URL}/api/claims`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+  const checkAuth = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({
+        title: "Not logged in",
+        description: "Please login to view claims",
+        variant: "destructive"
       });
+      navigate('/login');
+      return;
+    }
+    setUser(user);
+    fetchData(user.id);
+  };
+
+  const fetchData = async (userId: string) => {
+    try {
+      setLoading(true);
       
-      if (!response.ok) {
-        throw new Error(`Failed to fetch claims: ${response.status}`);
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      
+      setCustomer(customerData);
+
+      if (customerData) {
+        const { data: policyHoldersData } = await supabase
+          .from('policy_holders')
+          .select(`
+            *,
+            policies (*)
+          `)
+          .eq('customer_id', customerData.id)
+          .eq('status', 'active');
+        setPolicyHolders(policyHoldersData || []);
+
+        const { data: claimsData } = await supabase
+          .from('claims')
+          .select('*')
+          .eq('policy_holder_id', customerData.id)
+          .order('created_at', { ascending: false });
+        setClaims(claimsData || []);
       }
-      
-      const data = await response.json();
-      console.log('Fetched claims:', data);
-      setClaims(data);
     } catch (error) {
-      console.error('Error fetching claims:', error);
+      console.error('Error fetching data:', error);
       toast({
         title: "Error",
         description: "Failed to load claims",
@@ -62,58 +93,70 @@ const Claims = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('Submitting claim:', formData);
+    if (!customer) return;
     
+    setSubmitting(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/claims`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          purchased_policy_id: formData.policyId,
-          claim_amount: parseInt(formData.claimAmount),
-          incident_date: formData.claimDate,
-          description: formData.reason,
-          hospital_name: formData.hospitalName
-        })
-      });
+      const { error } = await supabase
+        .from('claims')
+        .insert({
+          policy_holder_id: formData.policyHolderId,
+          claim_amount: parseFloat(formData.claimAmount),
+          incident_date: formData.incidentDate,
+          incident_description: formData.incidentDescription,
+          hospital_name: formData.hospitalName,
+          status: 'pending'
+        });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Claim submission failed:', errorText);
-        throw new Error(`Failed to submit claim: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Claim submitted successfully:', data);
+      if (error) throw error;
 
       toast({
         title: "Claim Submitted",
         description: "Your claim has been submitted successfully and is under review.",
       });
       
-      setFormData({ policyId: "", claimAmount: "", reason: "", claimDate: "", hospitalName: "" });
-      fetchClaims();
-    } catch (error) {
+      setFormData({ 
+        policyHolderId: "", 
+        claimAmount: "", 
+        incidentDescription: "", 
+        incidentDate: "", 
+        hospitalName: "" 
+      });
+      fetchData(user.id);
+    } catch (error: any) {
       console.error('Claim submission error:', error);
       toast({
         title: "Submission Failed",
-        description: error instanceof Error ? error.message : "Failed to submit claim",
+        description: error.message || "Failed to submit claim",
         variant: "destructive"
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'bg-success text-success-foreground';
-      case 'rejected': return 'bg-destructive text-destructive-foreground';
-      case 'under_review': return 'bg-warning text-warning-foreground';
-      default: return 'bg-muted text-muted-foreground';
+      case 'approved': 
+        return 'bg-success text-success-foreground';
+      case 'rejected': 
+        return 'bg-destructive text-destructive-foreground';
+      case 'processing': 
+        return 'bg-warning text-warning-foreground';
+      case 'pending':
+        return 'bg-muted text-muted-foreground';
+      default: 
+        return 'bg-muted text-muted-foreground';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -124,50 +167,45 @@ const Claims = () => {
           </Button>
           <div className="flex items-center gap-2">
             <Shield className="h-8 w-8 text-primary" />
-            <h1 className="text-2xl font-bold text-primary">Claims Management</h1>
+            <h1 className="text-2xl font-bold text-primary">Insurance Claims</h1>
           </div>
         </div>
       </header>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* File New Claim */}
+        <div className="grid md:grid-cols-2 gap-8">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                File New Claim
-              </CardTitle>
+              <CardTitle>File a New Claim</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="policy">Select Your Policy</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, policyId: value })}>
+                  <Label htmlFor="policy">Select Policy</Label>
+                  <Select
+                    value={formData.policyHolderId}
+                    onValueChange={(value) => setFormData({ ...formData, policyHolderId: value })}
+                    required
+                  >
                     <SelectTrigger>
-                      <SelectValue placeholder="Choose your policy" />
+                      <SelectValue placeholder="Choose a policy" />
                     </SelectTrigger>
                     <SelectContent>
-                      {JSON.parse(localStorage.getItem('myPolicies') || '[]').map((policy: any) => (
-                        <SelectItem key={policy.id} value={policy.id.toString()}>
-                          {policy.policyName}
+                      {policyHolders.map((ph) => (
+                        <SelectItem key={ph.id} value={ph.id}>
+                          {ph.policies?.name} - ₹{ph.policies?.coverage_amount?.toLocaleString()}
                         </SelectItem>
                       ))}
-                      {JSON.parse(localStorage.getItem('myPolicies') || '[]').length === 0 && (
-                        <SelectItem value="none" disabled>
-                          No policies found - Purchase a policy first
-                        </SelectItem>
-                      )}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="claimAmount">Claim Amount (₹)</Label>
+                  <Label htmlFor="amount">Claim Amount (₹)</Label>
                   <Input
-                    id="claimAmount"
+                    id="amount"
                     type="number"
-                    placeholder="25000"
+                    placeholder="Enter claim amount"
                     value={formData.claimAmount}
                     onChange={(e) => setFormData({ ...formData, claimAmount: e.target.value })}
                     required
@@ -175,76 +213,96 @@ const Claims = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="claimDate">Claim Date</Label>
+                  <Label htmlFor="date">Incident Date</Label>
                   <Input
-                    id="claimDate"
+                    id="date"
                     type="date"
-                    value={formData.claimDate}
-                    onChange={(e) => setFormData({ ...formData, claimDate: e.target.value })}
+                    value={formData.incidentDate}
+                    onChange={(e) => setFormData({ ...formData, incidentDate: e.target.value })}
                     required
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="reason">Reason for Claim</Label>
+                  <Label htmlFor="hospital">Hospital Name</Label>
+                  <Input
+                    id="hospital"
+                    placeholder="Enter hospital name"
+                    value={formData.hospitalName}
+                    onChange={(e) => setFormData({ ...formData, hospitalName: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Incident Description</Label>
                   <Textarea
                     id="reason"
-                    placeholder="Describe the medical treatment or incident..."
-                    value={formData.reason}
-                    onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
+                    placeholder="Describe the incident..."
+                    value={formData.incidentDescription}
+                    onChange={(e) => setFormData({ ...formData, incidentDescription: e.target.value })}
                     rows={4}
                     required
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Upload Documents</Label>
-                  <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer">
-                    <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Click to upload medical bills, reports, and prescriptions
-                    </p>
-                  </div>
-                </div>
-
-                <Button type="submit" className="w-full">
-                  Submit Claim
+                <Button type="submit" className="w-full" disabled={submitting}>
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit Claim"
+                  )}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          {/* Existing Claims */}
           <Card>
             <CardHeader>
               <CardTitle>My Claims</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {claims.map((claim) => (
-                  <div key={claim.id} className="p-4 bg-muted rounded-lg">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-semibold">{claim.id}</p>
-                        <p className="text-sm text-muted-foreground">{claim.policy}</p>
+              {claims.length === 0 ? (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                  <p className="text-muted-foreground">No claims filed yet</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {claims.map((claim) => (
+                    <div key={claim.id} className="border rounded-lg p-4 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold text-lg">
+                            ₹{claim.claim_amount?.toLocaleString()}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(claim.incident_date).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <Badge className={getStatusColor(claim.status)}>
+                          {claim.status}
+                        </Badge>
                       </div>
-                      <Badge className={getStatusColor(claim.status)}>
-                        {claim.status.replace('_', ' ')}
-                      </Badge>
+                      <p className="text-sm text-muted-foreground line-clamp-2">
+                        {claim.incident_description}
+                      </p>
+                      {claim.hospital_name && (
+                        <p className="text-sm">
+                          <span className="font-medium">Hospital:</span> {claim.hospital_name}
+                        </p>
+                      )}
+                      {claim.approved_amount && (
+                        <p className="text-sm text-success">
+                          <span className="font-medium">Approved Amount:</span> ₹{claim.approved_amount.toLocaleString()}
+                        </p>
+                      )}
                     </div>
-                    <div className="flex justify-between items-center mt-3">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Amount</p>
-                        <p className="font-semibold">₹{claim.amount.toLocaleString('en-IN')}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Date</p>
-                        <p className="text-sm">{claim.date}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
