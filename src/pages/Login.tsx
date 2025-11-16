@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -18,37 +19,35 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Mock login - For demo, allow selecting role based on email
     try {
-      // Determine role based on email for demo purposes
-      let role = 'customer';
-      if (formData.email.includes('admin')) {
-        role = 'admin';
-      } else if (formData.email.includes('agent')) {
-        role = 'agent';
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
       }
       
-      const mockUser = {
-        role: role,
-        token: 'mock-jwt-token',
-        email: formData.email
-      };
-      
-      localStorage.setItem('token', mockUser.token);
-      localStorage.setItem('role', mockUser.role);
-      localStorage.setItem('email', mockUser.email);
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('role', data.user.role);
+      localStorage.setItem('email', data.user.email);
+      localStorage.setItem('userId', data.user.id);
       
       toast({
         title: "Login Successful",
-        description: `Welcome back ${role}!`,
+        description: `Welcome back ${data.user.role}!`,
       });
       
       // Navigate based on role
-      navigate(`/dashboard/${mockUser.role}`);
+      navigate(`/dashboard/${data.user.role}`);
     } catch (error) {
       toast({
         title: "Login Failed",
-        description: "Invalid credentials",
+        description: error instanceof Error ? error.message : "Invalid credentials",
         variant: "destructive"
       });
     }
@@ -63,12 +62,6 @@ const Login = () => {
           </div>
           <CardTitle className="text-2xl">Welcome Back</CardTitle>
           <CardDescription>Login to your HealthSure account</CardDescription>
-          <div className="mt-3 p-3 bg-muted rounded-lg text-left text-sm">
-            <p className="font-semibold mb-1">Demo Login Hint:</p>
-            <p className="text-muted-foreground">
-              Use email containing 'admin' for Admin, 'agent' for Agent, or any other for Customer
-            </p>
-          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
