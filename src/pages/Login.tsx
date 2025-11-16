@@ -19,6 +19,8 @@ const Login = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Attempting login with API:', API_BASE_URL);
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
@@ -26,11 +28,22 @@ const Login = () => {
         body: JSON.stringify(formData)
       });
       
-      const data = await response.json();
+      console.log('Login response status:', response.status);
       
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
+        const errorText = await response.text();
+        console.error('Login error:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        throw new Error(errorData.error || 'Login failed');
       }
+      
+      const data = await response.json();
+      console.log('Login successful, user role:', data.user.role);
       
       localStorage.setItem('token', data.token);
       localStorage.setItem('role', data.user.role);
@@ -45,9 +58,12 @@ const Login = () => {
       // Navigate based on role
       navigate(`/dashboard/${data.user.role}`);
     } catch (error) {
+      console.error('Login error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Invalid credentials";
+      
       toast({
         title: "Login Failed",
-        description: error instanceof Error ? error.message : "Invalid credentials",
+        description: `${errorMessage}. Using API: ${API_BASE_URL}`,
         variant: "destructive"
       });
     }

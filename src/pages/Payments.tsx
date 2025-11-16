@@ -30,15 +30,23 @@ const Payments = () => {
 
   const fetchPayments = async () => {
     try {
+      console.log('Fetching payments from:', `${API_BASE_URL}/api/payments`);
       const userId = localStorage.getItem('userId');
       const response = await fetch(`${API_BASE_URL}/api/payments`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch payments: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Fetched payments:', data);
       setPayments(data);
     } catch (error) {
+      console.error('Error fetching payments:', error);
       toast({
         title: "Error",
         description: "Failed to load payments",
@@ -51,6 +59,8 @@ const Payments = () => {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log('Submitting payment:', paymentForm);
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/payments`, {
@@ -68,8 +78,13 @@ const Payments = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process payment');
+        const errorText = await response.text();
+        console.error('Payment failed:', errorText);
+        throw new Error(`Failed to process payment: ${response.status}`);
       }
+
+      const data = await response.json();
+      console.log('Payment successful:', data);
 
       toast({
         title: "Payment Successful",
@@ -79,6 +94,7 @@ const Payments = () => {
       setPaymentForm({ policyId: "", amount: "", method: "" });
       fetchPayments();
     } catch (error) {
+      console.error('Payment error:', error);
       toast({
         title: "Payment Failed",
         description: error instanceof Error ? error.message : "Failed to process payment",

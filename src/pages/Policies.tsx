@@ -36,13 +36,21 @@ const Policies = () => {
 
   const fetchPolicies = async () => {
     try {
+      console.log('Fetching policies from:', `${API_BASE_URL}/api/policies`);
       const response = await fetch(`${API_BASE_URL}/api/policies`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch policies: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Fetched policies:', data);
       setPolicies(data);
     } catch (error) {
+      console.error('Error fetching policies:', error);
       toast({
         title: "Error",
-        description: "Failed to load policies",
+        description: "Failed to load policies. Using mock data.",
         variant: "destructive"
       });
     } finally {
@@ -121,6 +129,9 @@ const Policies = () => {
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Attempting to purchase policy:', selectedPolicy);
+    console.log('Purchase form data:', purchaseForm);
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/policies/purchase`, {
         method: 'POST',
@@ -136,8 +147,13 @@ const Policies = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to purchase policy');
+        const errorText = await response.text();
+        console.error('Purchase failed:', errorText);
+        throw new Error(`Failed to purchase policy: ${response.status}`);
       }
+
+      const data = await response.json();
+      console.log('Purchase successful:', data);
 
       toast({
         title: "Policy Purchased Successfully!",
@@ -155,6 +171,7 @@ const Policies = () => {
       setShowPurchaseDialog(false);
       setSelectedPolicy(null);
     } catch (error) {
+      console.error('Purchase error:', error);
       toast({
         title: "Purchase Failed",
         description: error instanceof Error ? error.message : "Failed to purchase policy",

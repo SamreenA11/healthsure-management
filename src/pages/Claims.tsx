@@ -32,15 +32,23 @@ const Claims = () => {
 
   const fetchClaims = async () => {
     try {
+      console.log('Fetching claims from:', `${API_BASE_URL}/api/claims`);
       const userId = localStorage.getItem('userId');
       const response = await fetch(`${API_BASE_URL}/api/claims`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch claims: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Fetched claims:', data);
       setClaims(data);
     } catch (error) {
+      console.error('Error fetching claims:', error);
       toast({
         title: "Error",
         description: "Failed to load claims",
@@ -53,6 +61,8 @@ const Claims = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log('Submitting claim:', formData);
     
     try {
       const response = await fetch(`${API_BASE_URL}/api/claims`, {
@@ -71,8 +81,13 @@ const Claims = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit claim');
+        const errorText = await response.text();
+        console.error('Claim submission failed:', errorText);
+        throw new Error(`Failed to submit claim: ${response.status}`);
       }
+
+      const data = await response.json();
+      console.log('Claim submitted successfully:', data);
 
       toast({
         title: "Claim Submitted",
@@ -82,6 +97,7 @@ const Claims = () => {
       setFormData({ policyId: "", claimAmount: "", reason: "", claimDate: "", hospitalName: "" });
       fetchClaims();
     } catch (error) {
+      console.error('Claim submission error:', error);
       toast({
         title: "Submission Failed",
         description: error instanceof Error ? error.message : "Failed to submit claim",
