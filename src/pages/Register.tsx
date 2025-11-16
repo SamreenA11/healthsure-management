@@ -25,18 +25,34 @@ const Register = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('Attempting registration with API:', API_BASE_URL);
+    console.log('Form data:', { ...formData, password: '***' });
+    
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(formData)
       });
       
-      const data = await response.json();
+      console.log('Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error(data.error || 'Registration failed');
+        const errorText = await response.text();
+        console.error('Registration error:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          throw new Error(`Server error: ${response.status}`);
+        }
+        throw new Error(errorData.error || 'Registration failed');
       }
+      
+      const data = await response.json();
+      console.log('Registration successful:', data);
       
       toast({
         title: "Registration Successful",
@@ -45,9 +61,12 @@ const Register = () => {
       
       navigate('/login');
     } catch (error) {
+      console.error('Registration error:', error);
+      const errorMessage = error instanceof Error ? error.message : "Please try again";
+      
       toast({
         title: "Registration Failed",
-        description: error instanceof Error ? error.message : "Please try again",
+        description: `${errorMessage}. Using API: ${API_BASE_URL}`,
         variant: "destructive"
       });
     }
@@ -99,7 +118,7 @@ const Register = () => {
             </div>
             <div className="space-y-2">
               <Label htmlFor="gender">Gender</Label>
-              <Select onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+              <Select onValueChange={(value) => setFormData({ ...formData, gender: value })} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Select gender" />
                 </SelectTrigger>
@@ -109,6 +128,16 @@ const Register = () => {
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="address">Address</Label>
+              <Input
+                id="address"
+                placeholder="123 Main Street, City"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="role">Register as</Label>
