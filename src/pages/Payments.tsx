@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, ArrowLeft, Download, CreditCard, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/api";
 
 const Payments = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const token = localStorage.getItem('token');
   
   const [paymentForm, setPaymentForm] = useState({
     policyId: "",
@@ -19,40 +21,70 @@ const Payments = () => {
     method: ""
   });
 
-  const [payments, setPayments] = useState([
-    { id: "PAY-001", type: "premium", policy: "Premium Health Shield", amount: 15000, method: "UPI", date: "2024-11-01", status: "success" },
-    { id: "PAY-002", type: "premium", policy: "Family Care Plus", amount: 25000, method: "Card", date: "2024-10-15", status: "success" },
-    { id: "PAY-003", type: "claim_settlement", policy: "Premium Health Shield", amount: 25000, method: "Bank Transfer", date: "2024-10-20", status: "success" },
-    { id: "PAY-004", type: "premium", policy: "Life Secure Pro", amount: 12000, method: "Netbanking", date: "2024-09-28", status: "success" },
-  ]);
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handlePaymentSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchPayments();
+  }, []);
+
+  const fetchPayments = async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const response = await fetch(`${API_BASE_URL}/api/payments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      setPayments(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load payments",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const policyNames: Record<string, string> = {
-      "1": "Premium Health Shield",
-      "2": "Family Care Plus",
-      "3": "Life Secure Pro"
-    };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          purchased_policy_id: paymentForm.policyId,
+          amount: parseInt(paymentForm.amount),
+          payment_method: paymentForm.method,
+          payment_type: 'premium'
+        })
+      });
 
-    const newPayment = {
-      id: `PAY-${(payments.length + 1).toString().padStart(3, '0')}`,
-      type: "premium" as const,
-      policy: policyNames[paymentForm.policyId] || "Unknown Policy",
-      amount: parseInt(paymentForm.amount),
-      method: paymentForm.method,
-      date: new Date().toISOString().split('T')[0],
-      status: "success" as const
-    };
+      if (!response.ok) {
+        throw new Error('Failed to process payment');
+      }
 
-    setPayments([newPayment, ...payments]);
-    
-    toast({
-      title: "Payment Successful",
-      description: `Payment of ₹${parseInt(paymentForm.amount).toLocaleString('en-IN')} completed successfully.`,
-    });
-    
-    setPaymentForm({ policyId: "", amount: "", method: "" });
+      toast({
+        title: "Payment Successful",
+        description: `Payment of ₹${parseInt(paymentForm.amount).toLocaleString('en-IN')} completed successfully.`,
+      });
+      
+      setPaymentForm({ policyId: "", amount: "", method: "" });
+      fetchPayments();
+    } catch (error) {
+      toast({
+        title: "Payment Failed",
+        description: error instanceof Error ? error.message : "Failed to process payment",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleDownloadReceipt = (payment: any) => {

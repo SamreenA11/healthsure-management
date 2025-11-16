@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,29 +9,81 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, ArrowLeft, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/api";
 
 const Support = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const token = localStorage.getItem('token');
   const [formData, setFormData] = useState({
     subject: "",
     priority: "medium",
     message: ""
   });
 
-  const existingTickets = [
-    { id: "TKT-5001", subject: "Policy renewal inquiry", status: "open", priority: "medium", date: "2024-11-15" },
-    { id: "TKT-5002", subject: "Claim status update", status: "in_progress", priority: "high", date: "2024-11-14", response: "Our team is reviewing your claim documents." },
-    { id: "TKT-5003", subject: "Network hospital list", status: "resolved", priority: "low", date: "2024-11-10", response: "Please find the attached list of network hospitals in your area." }
-  ];
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchTickets();
+  }, []);
+
+  const fetchTickets = async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const response = await fetch(`${API_BASE_URL}/api/support`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      setTickets(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load tickets",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Ticket Created",
-      description: "Your support ticket has been created. We'll respond within 24 hours.",
-    });
-    setFormData({ subject: "", priority: "medium", message: "" });
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/support`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          subject: formData.subject,
+          description: formData.message,
+          priority: formData.priority
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create ticket');
+      }
+
+      toast({
+        title: "Ticket Created",
+        description: "Your support ticket has been created. We'll respond within 24 hours.",
+      });
+      
+      setFormData({ subject: "", priority: "medium", message: "" });
+      fetchTickets();
+    } catch (error) {
+      toast({
+        title: "Submission Failed",
+        description: error instanceof Error ? error.message : "Failed to create ticket",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -143,7 +195,7 @@ const Support = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {existingTickets.map((ticket) => (
+                {tickets.map((ticket) => (
                   <div key={ticket.id} className="p-4 bg-muted rounded-lg">
                     <div className="flex items-start justify-between mb-2">
                       <div>

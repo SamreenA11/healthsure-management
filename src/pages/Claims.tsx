@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,54 +9,85 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Shield, ArrowLeft, FileText, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { API_BASE_URL } from "@/config/api";
 
 const Claims = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const token = localStorage.getItem('token');
   const [formData, setFormData] = useState({
     policyId: "",
     claimAmount: "",
     reason: "",
-    claimDate: ""
+    claimDate: "",
+    hospitalName: ""
   });
 
-  const [claims, setClaims] = useState([
-    { id: "CLM-1001", policy: "Premium Health Shield", amount: 25000, status: "approved", date: "2024-11-10" },
-    { id: "CLM-1002", policy: "Family Care Plus", amount: 15000, status: "under_review", date: "2024-11-14" },
-    { id: "CLM-1003", policy: "Premium Health Shield", amount: 8000, status: "pending", date: "2024-11-15" }
-  ]);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    fetchClaims();
+  }, []);
+
+  const fetchClaims = async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const response = await fetch(`${API_BASE_URL}/api/claims`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      setClaims(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load claims",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const policyNames: Record<string, string> = {
-      "1": "Premium Health Shield",
-      "2": "Family Care Plus",
-      "3": "Life Secure Pro"
-    };
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/claims`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          purchased_policy_id: formData.policyId,
+          claim_amount: parseInt(formData.claimAmount),
+          incident_date: formData.claimDate,
+          description: formData.reason,
+          hospital_name: formData.hospitalName
+        })
+      });
 
-    const newClaim = {
-      id: `CLM-${1004 + claims.length}`,
-      policy: policyNames[formData.policyId] || "Unknown Policy",
-      amount: parseInt(formData.claimAmount),
-      status: "pending",
-      date: formData.claimDate,
-      reason: formData.reason
-    };
+      if (!response.ok) {
+        throw new Error('Failed to submit claim');
+      }
 
-    // Add to local state
-    setClaims([newClaim, ...claims]);
-    
-    // Also save to localStorage so it shows in dashboard
-    const existingClaims = JSON.parse(localStorage.getItem('myClaims') || '[]');
-    existingClaims.push(newClaim);
-    localStorage.setItem('myClaims', JSON.stringify(existingClaims));
-    
-    toast({
-      title: "Claim Submitted",
-      description: "Your claim has been submitted successfully and is under review. Check your dashboard for updates.",
-    });
-    setFormData({ policyId: "", claimAmount: "", reason: "", claimDate: "" });
+      toast({
+        title: "Claim Submitted",
+        description: "Your claim has been submitted successfully and is under review.",
+      });
+      
+      setFormData({ policyId: "", claimAmount: "", reason: "", claimDate: "", hospitalName: "" });
+      fetchClaims();
+    } catch (error) {
+      toast({
+        title: "Submission Failed",
+        description: error instanceof Error ? error.message : "Failed to submit claim",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
