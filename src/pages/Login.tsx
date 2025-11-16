@@ -40,7 +40,7 @@ const Login = () => {
         .from('profiles')
         .select('role')
         .eq('id', user!.id)
-        .single();
+        .maybeSingle();
 
       toast({
         title: "Login Successful",
