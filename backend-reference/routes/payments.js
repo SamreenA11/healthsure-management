@@ -1,7 +1,8 @@
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+
 const router = express.Router();
-const { pool } = require('../server');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // Input validation helper
 const validateId = (id) => {
@@ -29,7 +30,7 @@ router.get('/', authMiddleware, roleMiddleware(['admin']), async (req, res) => {
                    JOIN customers c ON pp.customer_id = c.customer_id
                    JOIN policies p ON pp.policy_id = p.policy_id
                    ORDER BY pay.payment_date DESC`;
-    const [payments] = await pool.execute(query);
+    const [payments] = await db.execute(query);
     res.json(payments);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch payments' });
@@ -46,7 +47,7 @@ router.get('/customer/:customerId', authMiddleware, async (req, res) => {
                    JOIN policies p ON pp.policy_id = p.policy_id
                    WHERE pp.customer_id = ?
                    ORDER BY pay.payment_date DESC`;
-    const [payments] = await pool.execute(query, [customerId]);
+    const [payments] = await db.execute(query, [customerId]);
     res.json(payments);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -58,7 +59,7 @@ router.get('/policy/:purchasedPolicyId', authMiddleware, async (req, res) => {
   try {
     const policyId = validateId(req.params.purchasedPolicyId);
     const query = 'SELECT * FROM payments WHERE purchased_policy_id = ? ORDER BY payment_date DESC';
-    const [payments] = await pool.execute(query, [policyId]);
+    const [payments] = await db.execute(query, [policyId]);
     res.json(payments);
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -75,7 +76,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
                    JOIN customers c ON pp.customer_id = c.customer_id
                    JOIN policies p ON pp.policy_id = p.policy_id
                    WHERE pay.payment_id = ?`;
-    const [payments] = await pool.execute(query, [paymentId]);
+    const [payments] = await db.execute(query, [paymentId]);
     
     if (payments.length === 0) {
       return res.status(404).json({ error: 'Payment record not found' });
@@ -107,7 +108,7 @@ router.post('/', authMiddleware, async (req, res) => {
     const query = `INSERT INTO payments 
                    (purchased_policy_id, amount, payment_method, transaction_id, status) 
                    VALUES (?, ?, ?, ?, 'completed')`;
-    const [result] = await pool.execute(query, [
+    const [result] = await db.execute(query, [
       validatedPolicyId, 
       validatedAmount, 
       payment_method, 
@@ -135,7 +136,7 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     }
     
     const query = 'UPDATE payments SET status = ? WHERE payment_id = ?';
-    await pool.execute(query, [status, paymentId]);
+    await db.execute(query, [status, paymentId]);
     
     res.json({ message: 'Payment status updated successfully' });
   } catch (error) {
@@ -154,11 +155,11 @@ router.get('/stats/summary', authMiddleware, roleMiddleware(['admin']), async (r
                     SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) as pending_amount
                    FROM payments
                    WHERE payment_date >= DATE_SUB(NOW(), INTERVAL 30 DAY)`;
-    const [stats] = await pool.execute(query);
+    const [stats] = await db.execute(query);
     res.json(stats[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch statistics' });
   }
 });
 
-module.exports = router;
+export default router;

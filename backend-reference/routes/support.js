@@ -1,12 +1,13 @@
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+
 const router = express.Router();
-const { pool } = require('../server');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // Get all support tickets (admin/agent)
 router.get('/', authMiddleware, roleMiddleware(['admin', 'agent']), async (req, res) => {
   try {
-    const [tickets] = await pool.execute(
+    const [tickets] = await db.execute(
       `SELECT st.*, c.name as customer_name, u.email as customer_email
        FROM support_tickets st
        JOIN customers c ON st.customer_id = c.customer_id
@@ -23,7 +24,7 @@ router.get('/', authMiddleware, roleMiddleware(['admin', 'agent']), async (req, 
 router.get('/customer/:customerId', authMiddleware, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const [tickets] = await pool.execute(
+    const [tickets] = await db.execute(
       'SELECT * FROM support_tickets WHERE customer_id = ? ORDER BY created_at DESC',
       [customerId]
     );
@@ -37,7 +38,7 @@ router.get('/customer/:customerId', authMiddleware, async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const [tickets] = await pool.execute(
+    const [tickets] = await db.execute(
       `SELECT st.*, c.name as customer_name, u.email as customer_email
        FROM support_tickets st
        JOIN customers c ON st.customer_id = c.customer_id
@@ -61,7 +62,7 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const { customer_id, subject, description, priority } = req.body;
     
-    const [result] = await pool.execute(
+    const [result] = await db.execute(
       `INSERT INTO support_tickets 
        (customer_id, subject, description, priority, status) 
        VALUES (?, ?, ?, ?, 'open')`,
@@ -97,7 +98,7 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     
     values.push(id);
     
-    await pool.execute(
+    await db.execute(
       `UPDATE support_tickets SET ${updates.join(', ')} WHERE ticket_id = ?`,
       values
     );
@@ -114,7 +115,7 @@ router.put('/:id/assign', authMiddleware, roleMiddleware(['admin']), async (req,
     const { id } = req.params;
     const { agent_id } = req.body;
     
-    await pool.execute(
+    await db.execute(
       'UPDATE support_tickets SET assigned_to = ? WHERE ticket_id = ?',
       [agent_id, id]
     );
@@ -131,7 +132,7 @@ router.put('/:id/priority', authMiddleware, roleMiddleware(['admin', 'agent']), 
     const { id } = req.params;
     const { priority } = req.body;
     
-    await pool.execute(
+    await db.execute(
       'UPDATE support_tickets SET priority = ? WHERE ticket_id = ?',
       [priority, id]
     );
@@ -142,4 +143,4 @@ router.put('/:id/priority', authMiddleware, roleMiddleware(['admin', 'agent']), 
   }
 });
 
-module.exports = router;
+export default router;

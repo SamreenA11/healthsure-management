@@ -1,12 +1,13 @@
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+
 const router = express.Router();
-const { pool } = require('../server');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // Get all customers (admin/agent only)
 router.get('/', authMiddleware, roleMiddleware(['admin', 'agent']), async (req, res) => {
   try {
-    const [customers] = await pool.execute(
+    const [customers] = await db.execute(
       `SELECT c.*, u.email, u.status, a.name as agent_name
        FROM customers c
        JOIN users u ON c.user_id = u.user_id
@@ -23,7 +24,7 @@ router.get('/', authMiddleware, roleMiddleware(['admin', 'agent']), async (req, 
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const [customers] = await pool.execute(
+    const [customers] = await db.execute(
       `SELECT c.*, u.email, u.status
        FROM customers c
        JOIN users u ON c.user_id = u.user_id
@@ -45,7 +46,7 @@ router.get('/:id', authMiddleware, async (req, res) => {
 router.get('/user/:userId', authMiddleware, async (req, res) => {
   try {
     const { userId } = req.params;
-    const [customers] = await pool.execute(
+    const [customers] = await db.execute(
       `SELECT c.*, u.email, u.status
        FROM customers c
        JOIN users u ON c.user_id = u.user_id
@@ -69,7 +70,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const { name, phone, address, city, state, pincode } = req.body;
     
-    await pool.execute(
+    await db.execute(
       `UPDATE customers 
        SET name = ?, phone = ?, address = ?, city = ?, state = ?, pincode = ?
        WHERE customer_id = ?`,
@@ -88,7 +89,7 @@ router.put('/:id/assign-agent', authMiddleware, roleMiddleware(['admin']), async
     const { id } = req.params;
     const { agent_id } = req.body;
     
-    await pool.execute(
+    await db.execute(
       'UPDATE customers SET agent_id = ? WHERE customer_id = ?',
       [agent_id, id]
     );
@@ -99,4 +100,4 @@ router.put('/:id/assign-agent', authMiddleware, roleMiddleware(['admin']), async
   }
 });
 
-module.exports = router;
+export default router;

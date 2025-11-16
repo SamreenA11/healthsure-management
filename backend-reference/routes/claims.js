@@ -1,12 +1,13 @@
-const express = require('express');
+import express from 'express';
+import db from '../config/db.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
+
 const router = express.Router();
-const { pool } = require('../server');
-const { authMiddleware, roleMiddleware } = require('../middleware/auth');
 
 // Get all claims (admin/agent)
 router.get('/', authMiddleware, roleMiddleware(['admin', 'agent']), async (req, res) => {
   try {
-    const [claims] = await pool.execute(
+    const [claims] = await db.execute(
       `SELECT cl.*, c.name as customer_name, p.name as policy_name, pp.purchased_policy_id
        FROM claims cl
        JOIN purchased_policies pp ON cl.purchased_policy_id = pp.purchased_policy_id
@@ -24,7 +25,7 @@ router.get('/', authMiddleware, roleMiddleware(['admin', 'agent']), async (req, 
 router.get('/customer/:customerId', authMiddleware, async (req, res) => {
   try {
     const { customerId } = req.params;
-    const [claims] = await pool.execute(
+    const [claims] = await db.execute(
       `SELECT cl.*, p.name as policy_name, pp.purchased_policy_id
        FROM claims cl
        JOIN purchased_policies pp ON cl.purchased_policy_id = pp.purchased_policy_id
@@ -43,7 +44,7 @@ router.get('/customer/:customerId', authMiddleware, async (req, res) => {
 router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const { id } = req.params;
-    const [claims] = await pool.execute(
+    const [claims] = await db.execute(
       `SELECT cl.*, c.name as customer_name, c.customer_id, p.name as policy_name
        FROM claims cl
        JOIN purchased_policies pp ON cl.purchased_policy_id = pp.purchased_policy_id
@@ -68,7 +69,7 @@ router.post('/', authMiddleware, async (req, res) => {
   try {
     const { purchased_policy_id, claim_amount, incident_date, description, hospital_name } = req.body;
     
-    const [result] = await pool.execute(
+    const [result] = await db.execute(
       `INSERT INTO claims 
        (purchased_policy_id, claim_amount, incident_date, description, hospital_name, status) 
        VALUES (?, ?, ?, ?, ?, 'pending')`,
@@ -112,7 +113,7 @@ router.put('/:id/status', authMiddleware, roleMiddleware(['admin', 'agent']), as
     
     values.push(id);
     
-    await pool.execute(
+    await db.execute(
       `UPDATE claims SET ${updates.join(', ')} WHERE claim_id = ?`,
       values
     );
@@ -123,4 +124,4 @@ router.put('/:id/status', authMiddleware, roleMiddleware(['admin', 'agent']), as
   }
 });
 
-module.exports = router;
+export default router;

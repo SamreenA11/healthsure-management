@@ -1,7 +1,7 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 // Verify JWT token
-const authMiddleware = (req, res, next) => {
+export const authMiddleware = (req, res, next) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
     
@@ -18,7 +18,7 @@ const authMiddleware = (req, res, next) => {
 };
 
 // Check role
-const roleMiddleware = (roles) => {
+export const roleMiddleware = (roles) => {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Access denied' });
@@ -26,5 +26,3 @@ const roleMiddleware = (roles) => {
     next();
   };
 };
-
-module.exports = { authMiddleware, roleMiddleware };
