@@ -26,16 +26,30 @@ const Policies = () => {
   }, []);
 
   const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    
-    if (user) {
-      const { data: customerData } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-      setCustomer(customerData);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+      
+      if (user) {
+        const { data: customerData, error } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        
+        if (error) {
+          console.error('Error fetching customer:', error);
+        }
+        
+        if (customerData) {
+          console.log('Customer found:', customerData);
+          setCustomer(customerData);
+        } else {
+          console.log('No customer record found for user');
+        }
+      }
+    } catch (error) {
+      console.error('Error in checkUser:', error);
     }
   };
 
@@ -85,27 +99,72 @@ const Policies = () => {
 
   const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !customer || !selectedPolicy) return;
+    
+    console.log('Purchase attempt:', { user, customer, selectedPolicy });
+    
+    if (!user) {
+      toast({
+        title: "Not Logged In",
+        description: "Please login to purchase a policy",
+        variant: "destructive"
+      });
+      navigate('/login');
+      return;
+    }
+
+    if (!customer) {
+      toast({
+        title: "Customer Profile Missing",
+        description: "Please complete your profile first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!selectedPolicy) {
+      toast({
+        title: "No Policy Selected",
+        description: "Please select a policy",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setPurchasing(true);
     try {
-      const startDate = new Date();
-      const endDate = new Date();
-      endDate.setFullYear(endDate.getFullYear() + selectedPolicy.term_years);
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      
+      const futureDate = new Date(today);
+      futureDate.setFullYear(futureDate.getFullYear() + selectedPolicy.term_years);
+      const endDate = futureDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
 
-      const { error } = await supabase
+      console.log('Inserting policy holder:', {
+        customer_id: customer.id,
+        policy_id: selectedPolicy.id,
+        start_date: startDate,
+        end_date: endDate
+      });
+
+      const { data, error } = await supabase
         .from('policy_holders')
         .insert({
           customer_id: customer.id,
           policy_id: selectedPolicy.id,
           premium_amount: selectedPolicy.base_premium,
-          start_date: startDate.toISOString(),
-          end_date: endDate.toISOString(),
+          start_date: startDate,
+          end_date: endDate,
           payment_frequency: 'annually',
           status: 'active'
-        });
+        })
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database error:', error);
+        throw error;
+      }
+
+      console.log('Purchase successful:', data);
 
       toast({
         title: "Purchase Successful!",
@@ -117,7 +176,7 @@ const Policies = () => {
       console.error('Purchase error:', error);
       toast({
         title: "Purchase Failed",
-        description: error.message || "Failed to purchase policy",
+        description: error.message || "Failed to purchase policy. Please try again.",
         variant: "destructive"
       });
     } finally {
