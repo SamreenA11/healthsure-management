@@ -8,6 +8,7 @@ export const registerUser = async (data: {
   phone: string;
   gender?: string;
   address?: string;
+  dateOfBirth?: string;
 }) => {
   // Sign up the user
   const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -44,8 +45,8 @@ export const registerUser = async (data: {
         user_id: authData.user!.id,
         full_name: data.name,
         phone: data.phone,
-        date_of_birth: new Date().toISOString().split('T')[0],
-        address: data.address,
+        date_of_birth: data.dateOfBirth || new Date(Date.now() - 30 * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        address: data.address || '',
       });
     if (customerError) throw customerError;
   } else if (data.role === 'agent') {

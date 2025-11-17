@@ -21,6 +21,7 @@ const Register = () => {
     role: "customer",
     gender: "",
     address: "",
+    dateOfBirth: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -121,6 +122,16 @@ const Register = () => {
                 placeholder="123 Main Street, City"
                 value={formData.address}
                 onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="dateOfBirth">Date of Birth</Label>
+              <Input
+                id="dateOfBirth"
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
                 required
               />
             </div>

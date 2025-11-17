@@ -57,12 +57,18 @@ const CustomerDashboard = () => {
           .eq('customer_id', customerData.id);
         setMyPolicies(policiesData || []);
 
-        const { data: claimsData } = await supabase
-          .from('claims')
-          .select('*')
-          .eq('policy_holder_id', customerData.id)
-          .order('created_at', { ascending: false});
-        setMyClaims(claimsData || []);
+        // Get claims for all customer's policies
+        const policyHolderIds = policiesData?.map(ph => ph.id) || [];
+        let claimsData: any[] = [];
+        if (policyHolderIds.length > 0) {
+          const { data } = await supabase
+            .from('claims')
+            .select('*')
+            .in('policy_holder_id', policyHolderIds)
+            .order('created_at', { ascending: false });
+          claimsData = data || [];
+        }
+        setMyClaims(claimsData);
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error);

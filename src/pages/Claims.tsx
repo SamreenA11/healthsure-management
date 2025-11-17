@@ -71,12 +71,18 @@ const Claims = () => {
           .eq('status', 'active');
         setPolicyHolders(policyHoldersData || []);
 
-        const { data: claimsData } = await supabase
-          .from('claims')
-          .select('*')
-          .eq('policy_holder_id', customerData.id)
-          .order('created_at', { ascending: false });
-        setClaims(claimsData || []);
+        // Get claims for all customer's policies
+        const policyHolderIds = policyHoldersData?.map(ph => ph.id) || [];
+        let claimsData: any[] = [];
+        if (policyHolderIds.length > 0) {
+          const { data } = await supabase
+            .from('claims')
+            .select('*')
+            .in('policy_holder_id', policyHolderIds)
+            .order('created_at', { ascending: false });
+          claimsData = data || [];
+        }
+        setClaims(claimsData);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
